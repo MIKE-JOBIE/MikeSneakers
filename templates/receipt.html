@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Receipt | Mike Sneakers</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+h2 { text-align: center; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+table th, table td { border: 1px solid #000; padding: 8px; text-align: center; }
+.total { text-align: right; margin-top: 20px; }
+</style>
+</head>
+<body>
+<h2>MIKE SNEAKERS - RECEIPT</h2>
+<p>Date: {{ sale.date.strftime('%Y-%m-%d %H:%M') }}</p>
+<p>Sold by: {{ sale.sold_by }}</p>
+<table>
+<tr><th>Brand</th><th>Model</th><th>Size</th><th>Qty</th><th>Total USD</th><th>Profit</th></tr>
+<tr>
+<td>{{ sale.shoe.brand }}</td>
+<td>{{ sale.shoe.model }}</td>
+<td>{{ sale.shoe.size }}</td>
+<td>{{ sale.quantity }}</td>
+<td>${{ sale.total_usd }}</td>
+<td>${{ sale.profit_usd }}</td>
+</tr>
+</table>
+<p class="total"><strong>Net Total: ${{ sale.total_usd }} / SLL {{ usd_to_sll(sale.total_usd) }}</strong></p>
+<script>window.print();</script>
+</body>
+</html>

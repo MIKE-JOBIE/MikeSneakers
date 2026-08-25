@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard | Mike Sneakers</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+
+</head>
+<body data-daily-sales='{{ daily_sales | tojson | forceescape }}'
+data-best-sellers='{{ best_sellers | tojson | forceescape }}'
+data-unread-alerts="{{ unread_alerts | default(0) }}">
+
+<div class="layout">
+
+
+<!-- ==================== MAIN CONTENT ==================== -->
+<div class="main-content">
+
+    <header class="app-header">
+        <div class="brand-box">
+
+            <a href="{{ url_for('dashboard') }}" class="brand-logo-link">
+        
+                <div class="brand-mark">
+                    <i class="fa-solid fa-shoe-prints"></i>
+                </div>
+        
+                <div class="brand-wordmark">
+                    <strong>Mike</strong><span>Sneakers</span>
+                    <small>STORE MANAGEMENT</small>
+                </div>
+        
+            </a>
+        
+        </div>
+        
+        <nav class="top-nav">
+        
+            <a href="{{ url_for('sales_history') }}">
+                <i class="fa-solid fa-chart-line"></i>
+                Sales Analytics
+            </a>
+        
+            <a href="{{ url_for('products') }}" class="active">
+                <i class="fa-solid fa-boxes-stacked"></i>
+                Stock Management
+            </a>
+        
+        </nav>
+    
+        
+    
+        <div class="header-right">
+            <div class="user-info">
+                👤 <span>{{ username }}</span>
+                <span class="user-role">{{ role|capitalize }}</span>
+            </div>
+    
+            <div class="notification-wrapper">
+    
+                <button class="alert-btn" onclick="toggleNotifications()">
+                    <i class="fa-solid fa-bell"></i>
+                    {% if unread_alerts > 0 %}
+                    <span class="alert-dot">{{ unread_alerts }}</span>
+                    {% endif %}
+                </button>
+    
+                <div id="notificationPanel" class="alert-menu">
+                    <div class="alert-header">
+                        <h4>Notifications</h4>
+                        <button class="mark-all" onclick="markAllRead()">Mark all read</button>
+                    </div>
+    
+                    {% if notifications %}
+
+                    {% for n in notifications %}
+                    <div class="alert-item {% if not n.is_read %}unread{% endif %}" 
+                         data-id="{{ n.id }}"
+                         onclick="markSingleRead(this)">
+                        <div class="alert-message">
+                            {{ n.message }}
+                        </div>
+                        <div class="alert-time">
+                            {{ n.created_at.strftime("%d %b %H:%M") }}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% else %}
+                        <div class="alert-item">No notifications 🎉</div>
+                    {% endif %}
+                </div>
+    
+            </div>
+    
+            <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+        </div>
+    </header>
+
+
+        
+    
+
+<!-- ==================== FLASH MESSAGES ==================== -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="flash">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- ==================== PERFORMANCE OVERVIEW ==================== -->
+
+<div class="kpi-filter-bar">
+    <div class="kpi-filter-left">
+        <span class="section-eyebrow">BUSINESS PERFORMANCE</span>
+        <h2>Performance Overview</h2>
+        <p id="kpi-period-label">Today's business performance</p>
+    </div>
+
+    <div class="kpi-filter-right" role="group" aria-label="Performance period">
+        <button type="button" class="kpi-btn active" data-range="daily">
+            Daily
+        </button>
+
+        <button type="button" class="kpi-btn" data-range="monthly">
+            Monthly
+        </button>
+
+        <button type="button" class="kpi-btn" data-range="quarterly">
+            Quarterly
+        </button>
+
+        <button type="button" class="kpi-btn" data-range="yearly">
+            Yearly
+        </button>
+    </div>
+</div>
+
+<section class="summary" aria-label="Business performance metrics">
+
+    <!-- Sales -->
+    <div class="card kpi-card sales-card">
+        <div class="kpi-card-top">
+            <div>
+                <span class="kpi-label">Sales Revenue</span>
+                <h3>Sales</h3>
+            </div>
+
+            <div class="kpi-icon">
+                <i class="fa-solid fa-chart-line"></i>
+            </div>
+        </div>
+
+        <p id="totalSales">${{ "%.2f"|format(total_sales_usd) }}</p>
+        <small>SLL {{ "%.2f"|format(total_sales_sll) }}</small>
+
+        <div class="kpi-note" id="sales-period-note">
+            Today's revenue
+        </div>
+    </div>
+
+
+    <!-- Profit -->
+    {% if role in ['owner', 'admin'] %}
+    <div class="card kpi-card profit-card">
+        <div class="kpi-card-top">
+            <div>
+                <span class="kpi-label">Gross Profit</span>
+                <h3>Profit</h3>
+            </div>
+
+            <div class="kpi-icon">
+                <i class="fa-solid fa-arrow-trend-up"></i>
+            </div>
+        </div>
+
+        <p id="totalProfit">${{ "%.2f"|format(total_profit_usd) }}</p>
+        <small>SLL {{ "%.2f"|format(total_profit_sll) }}</small>
+
+        <div class="kpi-note" id="profit-period-note">
+            Today's gross profit
+        </div>
+    </div>
+    {% endif %}
+
+
+    <!-- Expenses -->
+    <div class="card kpi-card expense-card">
+        <div class="kpi-card-top">
+            <div>
+                <span class="kpi-label">Operating Costs</span>
+                <h3>Expenses</h3>
+            </div>
+
+            <div class="kpi-icon">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+        </div>
+
+        <p id="totalExpenses">${{ "%.2f"|format(total_expense_usd) }}</p>
+        <small>SLL {{ "%.2f"|format(total_expense_sll) }}</small>
+
+        <div class="kpi-note" id="expense-period-note">
+            Today's expenses
+        </div>
+    </div>
+
+
+    <!-- Net Profit -->
+    {% if role in ['owner', 'admin'] %}
+    <div class="card kpi-card net-profit-card">
+        <div class="kpi-card-top">
+            <div>
+                <span class="kpi-label">After Expenses</span>
+                <h3>Net Profit</h3>
+            </div>
+
+            <div class="kpi-icon">
+                <i class="fa-solid fa-sack-dollar"></i>
+            </div>
+        </div>
+
+        <p id="totalNetProfit">${{ "%.2f"|format(net_profit_usd) }}</p>
+        <small>SLL {{ "%.2f"|format(net_profit_sll) }}</small>
+
+        <div class="kpi-note" id="net-profit-period-note">
+            Today's net profit
+        </div>
+    </div>
+    {% endif %}
+
+</section>
+
+<!-- ==================== BUSINESS ALERTS ==================== -->
+
+{% if low_stock or high_demand %}
+<section class="dashboard-alert-grid">
+
+    {% if low_stock %}
+    <div class="alerts dashboard-alert low-stock-alert">
+        <div class="alert-section-heading">
+            <div class="alert-heading-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
+            <div>
+                <span>INVENTORY ALERT</span>
+                <h3>Low Stock</h3>
+            </div>
+
+            <span class="alert-count">{{ low_stock|length }}</span>
+        </div>
+
+        <ul>
+            {% for shoe in low_stock %}
+            <li>
+                <span>
+                    <strong>{{ shoe.brand }} {{ shoe.model }}</strong>
+                    <small>Size {{ shoe.size }}</small>
+                </span>
+
+                <strong class="stock-warning">
+                    {{ shoe.quantity }} left
+                </strong>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <a href="{{ url_for('products') }}" class="alert-action">
+            Manage inventory <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+    {% endif %}
+
+
+    {% if high_demand %}
+    <div class="alerts dashboard-alert demand-alert">
+        <div class="alert-section-heading">
+            <div class="alert-heading-icon">
+                <i class="fa-solid fa-fire"></i>
+            </div>
+
+            <div>
+                <span>SALES INSIGHT</span>
+                <h3>High Demand</h3>
+            </div>
+
+            <span class="alert-count">{{ high_demand|length }}</span>
+        </div>
+
+        <ul>
+            {% for name, qty in high_demand.items() %}
+            <li>
+                <span>
+                    <strong>{{ name }}</strong>
+                    <small>Last 7 days</small>
+                </span>
+
+                <strong class="demand-value">
+                    {{ qty }} sold
+                </strong>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <a href="{{ url_for('sales_history') }}" class="alert-action">
+            View sales analytics <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+    {% endif %}
+
+</section>
+{% endif %}
+
+<!-- ==================== ADD SHOE ==================== -->
+{% if role in ['owner', 'admin'] %}
+<section class="dashboard-form-card add-shoe" id="add-shoe-section">
+
+    <div class="form-card-header">
+        <div>
+            <span class="section-eyebrow">INVENTORY</span>
+            <h2>Add New Shoe</h2>
+            <p>Add a new sneaker to your store inventory.</p>
+        </div>
+
+        <div class="form-header-icon">
+            <i class="fa-solid fa-box-open"></i>
+        </div>
+    </div>
+
+    <form method="POST"
+          action="{{ url_for('add_shoe') }}"
+          class="dashboard-form">
+
+        <div class="form-grid">
+
+            <div class="form-field">
+                <label for="shoe-brand">Brand</label>
+                <input
+                    id="shoe-brand"
+                    name="brand"
+                    type="text"
+                    placeholder="e.g. Nike"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="shoe-model">Model</label>
+                <input
+                    id="shoe-model"
+                    name="model"
+                    type="text"
+                    placeholder="e.g. Air Max 90"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="shoe-size">Size</label>
+                <input
+                    id="shoe-size"
+                    name="size"
+                    type="text"
+                    placeholder="e.g. 42"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="shoe-cost">Cost USD</label>
+                <input
+                    id="shoe-cost"
+                    name="cost_usd"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="shoe-price">Selling Price USD</label>
+                <input
+                    id="shoe-price"
+                    name="sell_usd"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="shoe-quantity">Quantity</label>
+                <input
+                    id="shoe-quantity"
+                    name="quantity"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    required
+                >
+            </div>
+
+        </div>
+
+        <div class="form-actions">
+            <button type="reset" class="secondary-btn">
+                Clear
+            </button>
+
+            <button type="submit" class="primary-btn">
+                <i class="fa-solid fa-plus"></i>
+                Add Shoe
+            </button>
+        </div>
+
+    </form>
+</section>
+{% endif %}
+
+<!-- ==================== INVENTORY ==================== -->
+<section class="dashboard-panel inventory" id="inventory-section">
+
+    <div class="section-header dashboard-section-header">
+
+        <div>
+            <span class="section-eyebrow">STOCK CONTROL</span>
+            <h2>Inventory Management</h2>
+            <p>Monitor available sneakers and record sales.</p>
+        </div>
+
+        <div class="section-header-actions">
+            <span class="inventory-count">
+                {{ shoes|length }} Items
+            </span>
+
+            <a href="{{ url_for('products') }}" class="secondary-btn">
+                <i class="fa-solid fa-sliders"></i>
+                Advanced Stock
+            </a>
+        </div>
+
+    </div>
+
+    <div class="table-toolbar">
+
+        <div class="table-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+
+            <input
+                type="text"
+                id="inventorySearch"
+                placeholder="Search brand, model or size..."
+                onkeyup="searchInventory()"
+                autocomplete="off"
+            >
+        </div>
+
+        <span class="table-helper">
+            Showing {{ shoes|length }} item(s)
+        </span>
+
+    </div>
+
+    <div class="table-wrapper">
+
+        <table id="inventoryTable">
+
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Size</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Sell</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for shoe in shoes %}
+
+            <tr class="{% if shoe.quantity <= LOW_STOCK_THRESHOLD %}low-stock{% endif %}">
+
+                <td>
+                    <div class="product-cell">
+                        <div class="product-avatar">
+                            <i class="fa-solid fa-shoe-prints"></i>
+                        </div>
+
+                        <div>
+                            <strong>{{ shoe.brand }}</strong>
+                            <span>{{ shoe.model }}</span>
+                        </div>
+                    </div>
+                </td>
+
+                <td>
+                    <span class="size-badge">
+                        {{ shoe.size }}
+                    </span>
+                </td>
+
+                <td>
+                    <strong class="stock-number">
+                        {{ shoe.quantity }}
+                    </strong>
+                </td>
+
+                <td>
+
+                    {% if shoe.quantity == 0 %}
+                    <span class="status-badge status-out">
+                        Out of stock
+                    </span>
+
+                    {% elif shoe.quantity <= LOW_STOCK_THRESHOLD %}
+                    <span class="status-badge status-low">
+                        Low stock
+                    </span>
+
+                    {% else %}
+                    <span class="status-badge status-good">
+                        In stock
+                    </span>
+                    {% endif %}
+
+                </td>
+
+                <td>
+
+                    {% if shoe.quantity > 0 %}
+
+                    <form
+                        method="POST"
+                        action="{{ url_for('sell', shoe_id=shoe.id) }}"
+                        class="sell-form"
+                    >
+
+                        <input
+                            type="number"
+                            name="quantity"
+                            min="1"
+                            max="{{ shoe.quantity }}"
+                            placeholder="Qty"
+                            aria-label="Quantity to sell"
+                            required
+                        >
+
+                        <button type="submit">
+                            <i class="fa-solid fa-cart-shopping"></i>
+                            Sell
+                        </button>
+
+                    </form>
+
+                    {% else %}
+
+                    <span class="unavailable-text">
+                        Unavailable
+                    </span>
+
+                    {% endif %}
+
+                </td>
+
+            </tr>
+
+            {% else %}
+
+            <tr>
+                <td colspan="5" class="empty-state">
+                    <i class="fa-solid fa-box-open"></i>
+                    <strong>No sneakers in inventory</strong>
+                    <span>Add your first shoe to begin managing stock.</span>
+                </td>
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <!-- Inventory Pagination -->
+
+    {% if total_inventory_pages > 1 %}
+    <div class="pagination">
+
+        <a
+            href="{{ url_for(
+                'dashboard',
+                inv_page=inv_page-1 if inv_page > 1 else 1,
+                sales_page=sales_page
+            ) }}"
+            class="{{ 'disabled' if inv_page == 1 else '' }}"
+        >
+            <i class="fa-solid fa-chevron-left"></i>
+            Prev
+        </a>
+
+        {% for p in range(1, total_inventory_pages + 1) %}
+
+        <a
+            href="{{ url_for(
+                'dashboard',
+                inv_page=p,
+                sales_page=sales_page
+            ) }}"
+            class="{{ 'active' if p == inv_page else '' }}"
+        >
+            {{ p }}
+        </a>
+
+        {% endfor %}
+
+        <a
+            href="{{ url_for(
+                'dashboard',
+                inv_page=inv_page+1
+                    if inv_page < total_inventory_pages
+                    else total_inventory_pages,
+                sales_page=sales_page
+            ) }}"
+            class="{{ 'disabled' if inv_page == total_inventory_pages else '' }}"
+        >
+            Next
+            <i class="fa-solid fa-chevron-right"></i>
+        </a>
+
+    </div>
+    {% endif %}
+
+</section>
+
+<!-- ==================== EXPENSES ==================== -->
+{% if role in ['owner', 'admin'] %}
+<section class="dashboard-form-card expenses" id="add-expense-section">
+
+    <div class="form-card-header">
+
+        <div>
+            <span class="section-eyebrow">FINANCE</span>
+            <h2>Record Expense</h2>
+            <p>Track business expenses and operating costs.</p>
+        </div>
+
+        <div class="form-header-icon">
+            <i class="fa-solid fa-wallet"></i>
+        </div>
+
+    </div>
+
+    <form method="POST"
+          action="{{ url_for('add_expense') }}"
+          class="dashboard-form">
+
+        <div class="form-grid expense-form-grid">
+
+            <div class="form-field">
+                <label for="expense-title">Expense Name</label>
+                <input
+                    id="expense-title"
+                    name="title"
+                    type="text"
+                    placeholder="e.g. Transport"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="expense-amount">Amount USD</label>
+                <input
+                    id="expense-amount"
+                    name="amount_usd"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
+                >
+            </div>
+
+        </div>
+
+        <div class="form-actions">
+            <button type="reset" class="secondary-btn">
+                Clear
+            </button>
+
+            <button type="submit" class="primary-btn">
+                <i class="fa-solid fa-plus"></i>
+                Add Expense
+            </button>
+        </div>
+
+    </form>
+
+    <!-- ==================== EXPENSE ACCOUNTABILITY ==================== -->
+
+<div class="expense-accountability">
+
+    <div class="expense-accountability-header">
+
+        <div>
+            <span class="section-eyebrow">ACCOUNTABILITY</span>
+            <h3>Recent Expense Records</h3>
+            <p>Shows who recorded each business expense.</p>
+        </div>
+
+        <div class="expense-accountability-badge">
+            <i class="fa-solid fa-user-check"></i>
+            Owner / Admin
+        </div>
+
+    </div>
+
+
+    {% if recent_expense_logs %}
+
+    <div class="expense-accountability-table-wrapper">
+
+        <table class="expense-accountability-table">
+
+            <thead>
+                <tr>
+                    <th>Expense Activity</th>
+                    <th>Added By</th>
+                    <th>Date & Time</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for log_entry in recent_expense_logs %}
+
+            <tr>
+
+                <td>
+                    <div class="expense-record-action">
+                        <i class="fa-solid fa-receipt"></i>
+
+                        <span>
+                            {{ log_entry.action
+                                |replace("Added expense: ", "")
+                            }}
+                        </span>
+                    </div>
+                </td>
+
+                <td>
+                    <span class="expense-user-badge">
+                        <i class="fa-solid fa-user"></i>
+                        {{ log_entry.user }}
+                    </span>
+                </td>
+
+                <td>
+                    <span class="expense-date">
+                        {{ log_entry.timestamp.strftime("%d %b %Y, %H:%M") }}
+                    </span>
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <div class="expense-empty-state">
+
+        <i class="fa-solid fa-receipt"></i>
+
+        <strong>No expense records yet</strong>
+
+        <span>
+            Expenses recorded by the Owner or Admin will appear here.
+        </span>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+</section>
+{% endif %}
+
+<!-- ==================== SALES HISTORY ==================== -->
+<section class="dashboard-panel sales-overview-section" id="sales-overview-section">
+
+    <div class="section-header dashboard-section-header">
+
+        <div>
+            <span class="section-eyebrow">TRANSACTIONS</span>
+            <h2>Sales History</h2>
+            <p>Review, filter and analyze all completed sales.</p>
+        </div>
+
+        <a href="{{ url_for('sales_history') }}" class="primary-btn">
+            View Sales History
+            <i class="fa-solid fa-arrow-right"></i>
+        </a>
+
+    </div>
+
+</section>
+
+<!-- ==================== STAFF MANAGEMENT ==================== -->
+{% if role == 'owner' %}
+<section class="dashboard-form-card staff" id="add-staff-section">
+
+    <div class="form-card-header">
+
+        <div>
+            <span class="section-eyebrow">ADMINISTRATION</span>
+            <h2>Add Staff Member</h2>
+            <p>Create an Admin or Staff account for your team.</p>
+        </div>
+
+        <div class="form-header-icon">
+            <i class="fa-solid fa-user-plus"></i>
+        </div>
+
+    </div>
+
+    <form method="POST"
+          action="{{ url_for('add_staff') }}"
+          class="dashboard-form">
+
+        <div class="form-grid">
+
+            <div class="form-field">
+                <label for="staff-username">Username</label>
+                <input
+                    id="staff-username"
+                    name="username"
+                    type="text"
+                    placeholder="Enter username"
+                    autocomplete="off"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="staff-password">Password</label>
+                <input
+                    id="staff-password"
+                    name="password"
+                    type="password"
+                    placeholder="Minimum 6 characters"
+                    minlength="6"
+                    required
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="staff-role">Role</label>
+
+                <select id="staff-role" name="role" required>
+                    <option value="">Select role</option>
+                    <option value="admin">Admin</option>
+                    <option value="staff">Staff</option>
+                </select>
+            </div>
+
+        </div>
+
+        <div class="form-actions">
+
+            <button type="reset" class="secondary-btn">
+                Clear
+            </button>
+
+            <button type="submit" class="primary-btn">
+                <i class="fa-solid fa-user-plus"></i>
+                Create Account
+            </button>
+
+        </div>
+
+    </form>
+
+</section>
+{% endif %}
+
+<!-- ==================== STAFF MANAGEMENT EDIT ==================== -->
+{% if role == 'owner' %}
+<section class="dashboard-panel staff inventory" id="manage-staff">
+
+    <div class="section-header dashboard-section-header">
+
+        <div>
+            <span class="section-eyebrow">TEAM MANAGEMENT</span>
+            <h2>Manage Staff</h2>
+            <p>Control staff roles, passwords and access.</p>
+        </div>
+
+        <span class="inventory-count">
+            {{ users|length }} Users
+        </span>
+
+    </div>
+
+    <div class="table-wrapper">
+
+        <table id="staffTable">
+
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Account Actions</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for user in users %}
+
+            <tr>
+
+                <td>
+                    <div class="product-cell">
+                        <div class="user-avatar">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+
+                        <div>
+                            <strong>{{ user.username }}</strong>
+                            <span>Team member</span>
+                        </div>
+                    </div>
+                </td>
+
+                <td>
+
+                    <select
+                        class="role-select"
+                        onchange="updateRole({{ user.id }}, this.value)"
+                        aria-label="Change role for {{ user.username }}"
+                    >
+
+                        <option
+                            value="admin"
+                            {% if user.role.name == 'admin' %}selected{% endif %}
+                        >
+                            Admin
+                        </option>
+
+                        <option
+                            value="staff"
+                            {% if user.role.name == 'staff' %}selected{% endif %}
+                        >
+                            Staff
+                        </option>
+
+                    </select>
+
+                </td>
+
+                <td>
+
+                    <div class="staff-actions">
+
+                        <button
+                            type="button"
+                            class="secondary-btn"
+                            onclick="resetPassword({{ user.id }})"
+                        >
+                            <i class="fa-solid fa-key"></i>
+                            Reset Password
+                        </button>
+
+                        <button
+                            type="button"
+                            class="danger"
+                            onclick="deleteStaff({{ user.id }})"
+                        >
+                            <i class="fa-solid fa-trash"></i>
+                            Delete
+                        </button>
+
+                    </div>
+
+                </td>
+
+            </tr>
+
+            {% else %}
+
+            <tr>
+                <td colspan="3" class="empty-state">
+                    <i class="fa-solid fa-users"></i>
+                    <strong>No staff accounts</strong>
+                    <span>Create your first team member above.</span>
+                </td>
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+{% endif %}
+
+<!-- ==================== DASHBOARD CHARTS ==================== -->
+<section class="dashboard-charts">
+
+    <div class="section-header dashboard-section-header">
+
+        <div>
+            <span class="section-eyebrow">ANALYTICS</span>
+            <h2>Quick Sales Analytics</h2>
+            <p>Visualize sales performance and product demand.</p>
+        </div>
+
+        <div class="chart-filters">
+
+            <div class="date-field">
+                <label for="startDate">Start</label>
+                <input type="date" id="startDate">
+            </div>
+
+            <div class="date-field">
+                <label for="endDate">End</label>
+                <input type="date" id="endDate">
+            </div>
+
+            <button type="button"
+                    class="primary-btn"
+                    onclick="updateCharts()">
+                <i class="fa-solid fa-filter"></i>
+                Apply
+            </button>
+
+            <button type="button"
+                    class="secondary-btn"
+                    onclick="clearChartFilters()">
+                Clear
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="charts-grid">
+
+        <div class="chart-card">
+
+            <div class="chart-card-header">
+                <div>
+                    <span>REVENUE</span>
+                    <h3>Daily Sales Trend</h3>
+                </div>
+
+                <i class="fa-solid fa-chart-line"></i>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="dailySalesChart"></canvas>
+            </div>
+
+        </div>
+
+
+        <div class="chart-card">
+
+            <div class="chart-card-header">
+                <div>
+                    <span>PRODUCT DEMAND</span>
+                    <h3>Best Selling Shoes</h3>
+                </div>
+
+                <i class="fa-solid fa-ranking-star"></i>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="bestSellersChart"></canvas>
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+</div>
+
+</div> <!-- End main-content -->
+</div> <!-- End Layout -->
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

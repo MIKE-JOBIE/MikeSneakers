@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard | Mike Sneakers</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</head>
+<body>
+<div class="layout">
+
+
+<!--Navbar and Main Content -->
+<div class="main-content">
+
+<header class="app-header">
+    <div class="brand-box">
+
+        <a href="{{ url_for('dashboard') }}" class="brand-logo-link">
+    
+            <div class="brand-mark">
+                <i class="fa-solid fa-shoe-prints"></i>
+            </div>
+    
+            <div class="brand-wordmark">
+                <strong>Mike</strong><span>Sneakers</span>
+                <small>STORE MANAGEMENT</small>
+            </div>
+    
+        </a>
+    
+    </div>
+
+
+    <nav class="top-nav">
+
+        <a href="{{ url_for('sales_history') }}">
+            <i class="fa-solid fa-chart-line"></i>
+            Sales Analytics
+        </a>
+    
+        <a href="{{ url_for('dashboard') }}">
+            <i class="fa-solid fa-gauge-high"></i>
+            Dashboard
+        </a>
+    
+    </nav>
+
+    <div class="header-right">
+        <div class="user-info">
+            👤 <span>{{ username }}</span>
+            <span class="user-role">{{ role|capitalize }}</span>
+        </div>
+        <!-- <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a href="/sales_history">Sales History</a> -->
+
+        <div class="notification-wrapper">
+
+            <button class="alert-btn" onclick="toggleNotifications()">
+                🔔
+                {% if recent_sales or recent_expenses or recent_users or low_stock or high_demand %}
+                    <span class="alert-dot"></span>
+                {% endif %}
+            </button>
+        
+            <div id="notificationPanel" class="alert-menu">
+        
+                <h4>Recent Activity</h4>
+        
+                {% if recent_sales %}
+                    <strong>Sales</strong>
+                    {% for s in recent_sales %}
+                <div class="alert-item">
+                    Sold {{ s.quantity }} -
+                    {% if s.shoe %}
+                        {{ s.shoe.brand }} {{ s.shoe.model }}
+                    {% else %}
+                        Unknown Shoe
+                    {% endif %}
+                </div>
+                    {% endfor %}
+                {% endif %}
+        
+                {% if recent_expenses %}
+                    <strong>Expenses</strong>
+                    {% for e in recent_expenses %}
+                        <div class="alert-item">
+                            {{ e.title }} - ${{ e.amount_usd }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+        
+                {% if recent_users %}
+                    <strong>New Users</strong>
+                    {% for u in recent_users %}
+                        <div class="alert-item">
+                            {{ u.username }} ({{ u.role.name }})
+                        </div>
+                    {% endfor %}
+                {% endif %}
+        
+                {% if low_stock %}
+                    <strong>Low Stock</strong>
+                    {% for shoe in low_stock %}
+                        <div class="alert-item">
+                            {{ shoe.brand }} {{ shoe.model }} ({{ shoe.quantity }} left)
+                        </div>
+                    {% endfor %}
+                {% endif %}
+        
+                {% if high_demand %}
+                    <strong>High Demand</strong>
+                    {% for name, qty in high_demand.items() %}
+                        <div class="alert-item">
+                            {{ name }} sold {{ qty }} units
+                        </div>
+                    {% endfor %}
+                {% endif %}
+        
+                {% if not recent_sales and not recent_expenses and not recent_users and not low_stock and not high_demand %}
+                    <div class="alert-item">No notifications 🎉</div>
+                {% endif %}
+        
+            </div>
+        
+        </div>        
+        
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
+</header>
+
+<!--Advanced Inventory Section -->
+<section class="inventory-advanced">
+
+    <h2>Advanced Inventory</h2>
+    
+    <div class="filters">
+        <input type="text" id="searchInput" placeholder="Search by brand or model..." onkeyup="filterInventory()">
+    
+        <select id="brandFilter" onchange="filterInventory()">
+            <option value="">All Brands</option>
+            {% for brand in brands %}
+            <option value="{{ brand }}">{{ brand }}</option>
+            {% endfor %}
+        </select>
+    
+        <select id="sizeFilter" onchange="filterInventory()">
+            <option value="">All Sizes</option>
+            {% for size in sizes %}
+            <option value="{{ size }}">{{ size }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="advanced-inventory-table-wrapper">
+
+        <table id="advancedInventoryTable">
+
+            <colgroup>
+                <col class="col-brand">
+                <col class="col-model">
+                <col class="col-size">
+                <col class="col-stock">
+                <col class="col-cost">
+                <col class="col-sell">
+            </colgroup>
+    
+            <thead>
+                <tr>
+                    <th>Brand</th>
+                    <th>Model</th>
+                    <th>Size</th>
+                    <th>Stock</th>
+                    <th>Cost</th>
+                    <th>Sell</th>
+                </tr>
+            </thead>
+    
+            <tbody>
+    
+            {% for shoe in shoes %}
+    
+            <tr
+                data-brand="{{ shoe.brand|lower }}"
+                data-size="{{ shoe.size }}"
+            >
+    
+                <td class="inventory-brand">
+                    {{ shoe.brand }}
+                </td>
+    
+                <td class="inventory-model">
+                    {{ shoe.model }}
+                </td>
+    
+                <td class="inventory-size">
+                    {{ shoe.size }}
+                </td>
+    
+                <td class="inventory-stock {% if shoe.quantity <= LOW_STOCK_THRESHOLD %}low-stock{% endif %}">
+                    {{ shoe.quantity }}
+                </td>
+    
+                <td class="inventory-cost">
+                    ${{ "%.2f"|format(shoe.cost_usd) }}
+                </td>
+    
+                <td class="inventory-sell">
+                    ${{ "%.2f"|format(shoe.sell_usd) }}
+                </td>
+    
+            </tr>
+    
+            {% else %}
+    
+            <tr>
+                <td colspan="6" class="empty-state">
+                    No sneakers found.
+                </td>
+            </tr>
+    
+            {% endfor %}
+    
+            </tbody>
+    
+        </table>
+    
+    </div>
+    
+</section>
+
+<!--Restock Section -->
+<section class="restock-section">
+
+    <h2>Restock Inventory</h2>
+    
+    <form method="POST" action="{{ url_for('restock') }}">
+    
+    <select name="shoe_id" required>
+    <option value="">Select Shoe</option>
+    {% for shoe in shoes %}
+    <option value="{{ shoe.id }}">
+    {{ shoe.brand }} {{ shoe.model }} (Size {{ shoe.size }})
+    </option>
+    {% endfor %}
+    </select>
+    
+    <input type="number" name="quantity" placeholder="Quantity Added" required>
+    
+    <input type="number" step="0.01" name="cost_usd" placeholder="Cost per Unit" required>
+    
+    <input type="text" name="supplier" placeholder="Supplier (optional)">
+    
+    <button>Restock</button>
+    
+    </form>
+    
+</section>
+
+<!--Restock History -->
+<section class="restock-history">
+
+    <h2>Restock History</h2>
+    
+    <table>
+    <tr>
+    <th>Shoe</th>
+    <th>Qty Added</th>
+    <th>Cost</th>
+    <th>Supplier</th>
+    <th>Date</th>
+    </tr>
+    
+    {% for r in restocks %}
+    <tr>
+    <td>{{ r.shoe.brand }} {{ r.shoe.model }}</td>
+    <td>{{ r.quantity }}</td>
+    <td>${{ r.cost_usd }}</td>
+    <td>{{ r.supplier or '-' }}</td>
+    <td>{{ r.created_at.strftime("%d %b %Y") }}</td>
+    </tr>
+    {% endfor %}
+    
+    </table>
+    
+</section>
+
+</div> <!-- End main-content -->
+</div> <!-- End Layout -->
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
