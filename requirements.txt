@@ -6,20 +6,32 @@ colorama==0.4.6
 dnspython==2.8.0
 eventlet==0.40.4
 Flask==2.3.2
+Flask-Limiter==3.9.2
 Flask-Login==0.6.3
 Flask-Migrate==4.1.0
 Flask-SocketIO==5.6.0
 Flask-SQLAlchemy==3.1.1
+Flask-WTF==1.2.2
 greenlet==3.3.1
+gunicorn==23.0.0
 h11==0.16.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 Mako==1.3.10
 MarkupSafe==3.0.3
+python-dotenv==1.0.1
 python-engineio==4.13.1
 python-socketio==5.16.1
+reportlab==4.2.5
 simple-websocket==1.1.0
 SQLAlchemy==2.0.46
 typing_extensions==4.15.0
 Werkzeug==3.1.5
 wsproto==1.3.2
+
+# Production database drivers — uncomment the one you deploy with.
+# SQLite works for development, but switch to Postgres once you're
+# running 20-30 concurrent users so writes don't serialize behind
+# SQLite's single-writer lock.
+# psycopg2-binary==2.9.10      # PostgreSQL
+# PyMySQL==1.1.1                # MySQL / MariaDB
