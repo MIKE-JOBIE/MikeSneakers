@@ -19,9 +19,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-with app.app_context():
-    db.create_all()
-
 # ==================== CONSTANTS ====================
 
 USD_TO_SLL = 23000
@@ -234,6 +231,7 @@ def seed_owner():
 
 
 def ensure_owner():
+    db.create_all()
     """
     Ensure the default roles and owner account exist.
     """
@@ -1327,13 +1325,16 @@ def reset_owner_password():
 
 
 
+with app.app_context():
+    db.create_all()
+
 # ==================== INIT ====================
 
 if __name__ == "__main__":
 
     with app.app_context():
 
-        db.create_all()
+        # db.create_all()
 
         ensure_owner()
 
